@@ -1,16 +1,19 @@
-module Parscript.Types(
+module Types(
 	Stack,
+	NativeFunc,
 	Data(..),
 	Function(..),
 	Token(..),
-	module Prelude
+	module Prelude,
+	module Data.Ratio
 ) where
 
 import Data.Ratio
 import Prelude
 
 type Stack = [Data]
-data Data = N Rational | S String | C Data Data | F Function | Nil | Undef | Lbrace deriving (Eq)
+type NativeFunc = (Stack -> Stack)
+data Data = N Rational | S String | C [Data] | F Function | Nil | Undef | Lbrace deriving (Eq)
 
 data Function= Block [Token] | NFunc (Stack->Stack)
 
@@ -51,16 +54,10 @@ instance Show Data where
 	        	(a,b) = (numerator x) `divMod` (denominator x)
 		} in if b==0 then show a else show ((fromRational x)::Double)
 	show (S x) = x
-	show (C x y) = '(':(f x y)
+	show (C x) = '(':((unwords.map show$x)++")")
 	show (F a) = show a
 	show Nil   = "nil"
 	show Undef = "undef"
 	show Lbrace= "{"
-
-f :: Data -> Data -> String
-f x Nil       = (show x)++")"
-f x (C y Nil) = (show x)++" "++(show y)++")"
-f x (C y z)   = (show x)++" "++f y z
-f x y         = (show x)++" . "++(show y)++")"
 
 
