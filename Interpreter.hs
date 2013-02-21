@@ -1,6 +1,7 @@
 module Interpreter () where
 
 import Types
+import Parser
 
 runTok :: Token -> InterpreterState -> InterpreterState
 runTok (CTok _) b = b
@@ -14,4 +15,7 @@ runTok (FTok a) b = let f=lookup a (dict b) in case f of
 runToks :: [Token] -> InterpreterState -> InterpreterState
 runToks = flip (foldl (flip runTok))
 
-
+doString :: String -> InterpreterState -> InterpreterState
+doString a s = case (parse a) of
+	Right ts -> runToks ts s
+	Left  e  -> s { output = ("Cannot eval: "++e++"!\n"):(output b) }

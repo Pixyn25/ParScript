@@ -1,10 +1,16 @@
 module Functions () where
 
 import Types
+import Interpreter
 import Data.List
 import Data.Function
 import Data.Char
-import Types
+
+type SEFunc = InterpreterState -> InterpreterState
+type  PFunc = Stack -> Stack
+
+liftSE :: PFunc -> SEFunc
+liftSE a = \r -> let b=stack r in r {stack = a b}
 
 notEnoughArgs :: [a] -> Integer -> String -> b
 notEnoughArgs argList expN fname = 
@@ -14,7 +20,7 @@ __int :: (Integral a) => Rational -> a
 __int x = floor$((fromRational x)::Double)
 
 -- symbol +
-nf_plus :: NativeFunc
+nf_plus :: PFunc
 nf_plus (a:b:xs) = (__plus b a):xs
 nf_plus e        = notEnoughArgs e 2 "plus"
 
@@ -29,7 +35,7 @@ __plus   _       _     = Undef
 
 
 -- symbol -
-nf_minus :: NativeFunc
+nf_minus :: PFunc
 nf_minus (a:b:xs) = (__minus b a):xs
 nf_minus e                = notEnoughArgs e 2 "minus"
 
@@ -44,7 +50,7 @@ __minus   _       _     = Undef
 
 
 -- symbol *
-nf_times :: NativeFunc
+nf_times :: PFunc
 nf_times (a:b:xs) = (__times b a):xs
 nf_times e        = notEnoughArgs e 2 "times"
 
@@ -62,7 +68,7 @@ __times y@(S _) x@(C _) = __times x y
 __times   _       _     = Undef
 
 -- symbol /
-nf_div :: NativeFunc
+nf_div :: PFunc
 nf_div (a:b:xs) = (__div b a):xs
 
 __div   Nil     _     = Nil
@@ -74,7 +80,7 @@ __div   (C a)   (C b) = C (zipWith __div a b)
 __div   _       _     = Undef
 
 -- symbol _
-nf_neg :: NativeFunc
+nf_neg :: PFunc
 nf_neg (a:xs) = (__neg a):xs
 nf_neg _      = notEnoughArgs [] 1 "neg"
 
@@ -84,7 +90,7 @@ __neg Nil   = Nil
 __neg _     = Undef
 
 -- symbol #
-nf_index :: NativeFunc
+nf_index :: PFunc
 nf_index (a:b:xs) = (__index b a):xs
 nf_index e        = notEnoughArgs e 2 "index"
 
@@ -95,47 +101,47 @@ __index a     b      = a
 (!!!) :: (Integral n) => [Data] -> n -> Data
 (!!!) []    _ = Nil
 (!!!) (a:as) b | b<0 = Nil
-               | b>0 = (!!!) as (b-1)
+               | b>0 = as !!! (b-1)
                | 2>1 = a
 
 -- symbol ~
-nf_swap :: NativeFunc
+nf_swap :: PFunc
 nf_swap (a:b:xs) = b:a:xs
 nf_swap e        = notEnoughArgs e 2 "swap"
 
 -- symbol \
-nf_over :: NativeFunc
+nf_over :: PFunc
 nf_over (a:b:xs) = b:a:b:xs
 nf_over c      = notEnoughArgs c 2 "over"
 
 --symbol `
-nf_pop  :: NativeFunc
+nf_pop  :: PFunc
 nf_pop (_:xs) = xs
 nf_pop _    = error "Stack underflow on pop"
 
 -- symbol $
-nf_dup  :: NativeFunc
+nf_dup  :: PFunc
 nf_dup (a:b) = a:a:b
 nf_dup _     = notEnoughArgs [] 1 "dup"
 
 -- symbol :
-nf_nil  :: NativeFunc
+nf_nil  :: PFunc
 nf_nil a   = Nil:a
 
 -- symbol @
-nf_rot  :: NativeFunc
+nf_rot  :: PFunc
 nf_rot (a:b:c:xs) = b:c:a:xs
 nf_rot e          = notEnoughArgs e 3 "rotate"
 
 -- symbol .
-nf_cons :: NativeFunc
+nf_cons :: PFunc
 nf_cons (a:(C b):xs) = (C (a:b)):xs
 nf_cons (a:(Nil):xs) = (C$if a==Nil then [] else [a]):xs
 nf_cons (a:b:xs)     = (C [a,b]):xs
 nf_cons e            = notEnoughArgs e 2 "cons"
 
 -- symbol ,
-nf_uncons :: NativeFunc
+nf_uncons :: PFunc
 nf_uncons ((C []):xs)   = Nil:Nil:xs
 nf_uncons ((C [x]):xs)  = x:Nil:xs
 nf_uncons ((C (d:ds)):xs) = d:(C ds):xs
@@ -143,7 +149,7 @@ nf_uncons (a:xs)        = a:Nil:xs
 nf_uncons e             = notEnoughArgs [] 1 "uncons"
 
 -- symbol &
-nf_append :: NativeFunc
+nf_append :: PFunc
 nf_append ((C x):(C y):zs) = (C (y ++ x)):zs
 nf_append ((S x):(S y):zs) = (S (y ++ x)):zs
 nf_append (  a  :(C y):zs) = (C (a:y)):zs
@@ -154,25 +160,25 @@ nf_append (_:_:z)=Undef:z
 nf_append e                = notEnoughArgs e 2 "append"
 
 -- symbol ;
-nf_nop :: NativeFunc
+nf_nop :: PFunc
 nf_nop = id
 
 -- symbol a
---nf_a :: NativeFunc
+--nf_a :: PFunc
 --nf_a x:y:xs
 
 -- symbol S
-nf_sort :: NativeFunc
+nf_sort :: PFunc
 nf_sort ((C a):xs) = (C (sort a)):xs
 nf_sort (a    :xs) = a:xs
 nf_sort _          = notEnoughArgs [] 1 "Sort"
 
 -- symbol {
-nf_lbrace :: NativeFunc
+nf_lbrace :: PFunc
 nf_lbrace = (Lbrace:)
 
 -- symbol }
-nf_rbrace :: NativeFunc
+nf_rbrace :: PFunc
 nf_rbrace s = let {
 	(l,r)=span (/=Lbrace) s;
 } in if null r then error "No matching left brace" else (C l):(tail r)
