@@ -1,23 +1,31 @@
 module Types(
 	Stack,
-	NativeFunc,
 	Data(..),
 	Function(..),
 	Token(..),
+	InterpreterState(..),
 	module Prelude,
 	module Data.Ratio
 ) where
 
 import Data.Ratio
 import Prelude
+import System.Random
 
 type Stack = [Data]
-type NativeFunc = (Stack -> Stack)
 data Data = N Rational | S String | C [Data] | F Function | Nil | Undef | Lbrace deriving (Eq)
 
-data Function= Block [Token] | NFunc (Stack->Stack)
+data Function= Block [Token] | NFunc (InterpreterState -> InterpreterState)
 
-data Token = CTok String | NTok Rational | STok String | BTok [Token] deriving (Eq, Ord)
+data Token = CTok String | LTok Data | FTok String deriving (Eq, Ord)
+
+data InterpreterState = InterpreterState {
+        input  :: String,
+        stack  :: Stack,
+        output :: [String],
+        rgen   :: StdGen,
+        dict   :: [(String,Function)]
+}
 
 instance Eq Function where
 	(==) (Block a) (Block b) = a == b
@@ -28,10 +36,9 @@ instance Show Function where
 	show (NFunc _) = "<native function>"
 
 instance Show Token where
-	show (CTok a) = a
-	show (STok a) = show a
-	show (NTok a) = show (N a)
-	show (BTok b) = show (Block b)
+	show (CTok a) = "("++a++")"
+	show (LTok l) = show l
+	show (FTok a) = a
 
 instance Ord Data where
 	Undef `compare` _ = undefined
