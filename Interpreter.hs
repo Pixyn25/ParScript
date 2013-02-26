@@ -1,4 +1,4 @@
-module Interpreter () where
+module Interpreter (doString, module Types) where
 
 import Types
 import Parser
@@ -18,4 +18,4 @@ runToks = flip (foldl (flip runTok))
 doString :: String -> InterpreterState -> InterpreterState
 doString a s = case (parse a) of
 	Right ts -> runToks ts s
-	Left  e  -> s { output = ("Cannot eval: "++e++"!\n"):(output b) }
+	Left  e  -> s { output = ("Cannot eval: "++e++"!\n"):(output s) }

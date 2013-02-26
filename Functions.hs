@@ -1,10 +1,11 @@
-module Functions () where
+module Functions (default_funcs) where
 
 import Types
 import Interpreter
 import Data.List
 import Data.Function
 import Data.Char
+import qualified Data.Map as M
 
 type SEFunc = InterpreterState -> InterpreterState
 type  PFunc = Stack -> Stack
@@ -12,12 +13,35 @@ type  PFunc = Stack -> Stack
 liftSE :: PFunc -> SEFunc
 liftSE a = \r -> let b=stack r in r {stack = a b}
 
+pToNF :: PFunc -> Function
+pToNF = NFunc . liftSE
+
 notEnoughArgs :: [a] -> Integer -> String -> b
 notEnoughArgs argList expN fname = 
 	error$"Not enough arguments to "++fname++"\n\tExpected: "++show expN++"\n\tReceived: "++show(length argList)
 
 __int :: (Integral a) => Rational -> a
 __int x = floor$((fromRational x)::Double)
+
+default_funcs :: [(String, Function)]
+default_funcs =  [
+	("+", pToNF nf_plus),
+	("-", pToNF nf_minus),
+	("*", pToNF nf_times),
+	("/", pToNF nf_div),
+	("_", pToNF nf_neg),
+	("#", pToNF nf_index),
+	("~", pToNF nf_swap),
+	("\\", pToNF nf_over),
+	("`", pToNF nf_pop),
+	("$", pToNF nf_dup),
+	(":", pToNF nf_nil),
+	("@", pToNF nf_rot),
+	(".", pToNF nf_cons),
+	(",", pToNF nf_uncons),
+	("{", pToNF nf_lbrace),
+	("}", pToNF nf_rbrace),
+	("&", pToNF nf_append)]
 
 -- symbol +
 nf_plus :: PFunc
@@ -181,7 +205,7 @@ nf_lbrace = (Lbrace:)
 nf_rbrace :: PFunc
 nf_rbrace s = let {
 	(l,r)=span (/=Lbrace) s;
-} in if null r then error "No matching left brace" else (C l):(tail r)
+} in if null r then error "No matching left brace" else (C (reverse l)):(tail r)
 
 main :: IO ()
 main = do {

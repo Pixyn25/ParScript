@@ -4,7 +4,6 @@ module Types(
 	Function(..),
 	Token(..),
 	InterpreterState(..),
-	module Prelude,
 	module Data.Ratio
 ) where
 
@@ -33,7 +32,7 @@ instance Eq Function where
 
 instance Show Function where
 	show (Block a) = '[':((unwords.map show$a)++"]")
-	show (NFunc _) = "<native function>"
+	show (NFunc _) = "<native>"
 
 instance Show Token where
 	show (CTok a) = "("++a++")"
