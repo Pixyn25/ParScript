@@ -59,8 +59,8 @@ instance Show Data where
 	show (N x) = let {
 	        	(a,b) = (numerator x) `divMod` (denominator x)
 		} in if b==0 then show a else show ((fromRational x)::Double)
-	show (S x) = x
-	show (C x) = '(':((unwords.map show$x)++")")
+	show (S x) = "("++x++")"
+	show (C x) = '{':((unwords.map show$x)++"}")
 	show (F a) = show a
 	show Nil   = "nil"
 	show Undef = "undef"

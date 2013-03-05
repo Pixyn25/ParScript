@@ -5,6 +5,7 @@ import Interpreter
 import Data.List
 import Data.Function
 import Data.Char
+import System.Random
 import qualified Data.Map as M
 
 type SEFunc = InterpreterState -> InterpreterState
@@ -39,9 +40,15 @@ default_funcs =  [
 	("@", pToNF nf_rot),
 	(".", pToNF nf_cons),
 	(",", pToNF nf_uncons),
+	("!", NFunc nf_exec),
 	("{", pToNF nf_lbrace),
 	("}", pToNF nf_rbrace),
-	("&", pToNF nf_append)]
+	("&", pToNF nf_append),
+	("a", NFunc nf_a),
+	("i", pToNF nf_i),
+	("o", NFunc nf_o),
+	("J", NFunc nf_J),
+	("S", pToNF nf_S)]
 
 -- symbol +
 nf_plus :: PFunc
@@ -68,7 +75,7 @@ __minus   Nil     _     = Nil
 __minus   _       Nil   = Nil
 __minus   (N a)   (N b) = N (a-b)
 __minus n@(N a)   (C b) = C (map (__minus n) b)
-__minus b@(C _) a@(N _) = __minus a b
+__minus b@(C _) a@(N _) = let C x = __minus a b in C$map __neg x
 __minus   (C x)   (C y) = C (zipWith __minus x y)
 __minus   _       _     = Undef
 
@@ -97,11 +104,39 @@ nf_div (a:b:xs) = (__div b a):xs
 
 __div   Nil     _     = Nil
 __div   _       Nil   = Nil
+__div   (N a)   (N 0) = Undef
 __div   (N a)   (N b) = N (a/b)
 __div   (C a) x@(N b) = C (map (`__div` x) a)
 __div x@(N a)   (C b) = C (map (__div x) b)
 __div   (C a)   (C b) = C (zipWith __div a b)
 __div   _       _     = Undef
+
+-- symbol %
+nf_mod :: PFunc
+nf_mod (a:b:xs) = (__mod b a):xs
+
+
+__mod   Nil     _     = Nil
+__mod   _       Nil   = Nil
+__mod   (N a)   (N b) = N ( a-b*(toRational$floor (a/b)) )
+__mod   (C a) x@(N b) = C (map (`__mod` x) a)
+__mod x@(N a)   (C b) = C (map (__mod x) b)
+__mod   (C a)   (C b) = C (zipWith __mod a b)
+__mod   (S a)   (C b) = S$ __format a b
+__mod   _       _     = Undef
+
+__format :: String -> [Data] -> String
+__format "" _ = ""
+__format a [] = a
+__format ('$':c:xs) d = let {
+} in if c=='$' then '$':xs
+else if isNumber c then let{ 
+	(n,rest) = span isNumber (c:xs);
+	i=((read n)::Integer);
+	s=show$d !!! i
+} in s ++ rest
+else '$':c:__format xs d
+__format (a:b) d = a:__format b d
 
 -- symbol _
 nf_neg :: PFunc
@@ -178,24 +213,62 @@ nf_append ((C x):(C y):zs) = (C (y ++ x)):zs
 nf_append ((S x):(S y):zs) = (S (y ++ x)):zs
 nf_append (  a  :(C y):zs) = (C (a:y)):zs
 nf_append (  a  :(S y):zs) = (S (y++(show a))):zs
-nf_append ((F (Block x)):(F (Block y)):zs) = (F (Block (x ++ y))):zs
+nf_append ((F (Block x)):(F (Block y)):zs) = (F (Block (y ++ x))):zs
 nf_append ((F (NFunc x)):(F (NFunc y)):zs) = (F (NFunc (x . y))):zs
 nf_append (_:_:z)=Undef:z
 nf_append e                = notEnoughArgs e 2 "append"
+
+-- symbol !
+nf_exec :: SEFunc
+nf_exec s@(InterpreterState _ ((F (NFunc f)):r) _ _ _) = f (s { stack = r})
+nf_exec s@(InterpreterState _ ((F (Block t)):r) _ _ _) = runToks t (s { stack = r })
+nf_exec s@(InterpreterState _ (a:_) _ _ _) = s
+nf_exec _ = notEnoughArgs [] 1 "exec"
 
 -- symbol ;
 nf_nop :: PFunc
 nf_nop = id
 
 -- symbol a
---nf_a :: PFunc
---nf_a x:y:xs
+nf_a :: SEFunc 
+nf_a =  doString "[][`[][`1][`0]?][``0]?"
+
+-- symbol i
+nf_i :: PFunc
+nf_i (x:xs) = (__i x):xs
+nf_i _      = notEnoughArgs  [] 1 "iota"
+__i  :: Data -> Data
+__i (N x) = let {
+	a=toInteger(fromEnum x);
+	b=[1..a];
+} in if null b then Nil else C$(map (N. toRational) b)
+__i (C x) = C$(map __i x)
+__i _     = Undef
+
+-- symbol o
+nf_o :: SEFunc
+nf_o =  doString "[][``1][`[][`1][`0]?]?"
+
+-- symbol J
+nf_J :: SEFunc
+nf_J a = let (newr, news) = __J (rgen a) (stack a) in a {rgen=newr, stack=news}
+__J :: StdGen -> Stack -> (StdGen,Stack)
+__J _ [] = notEnoughArgs [] 1 "jumble"
+__J g ((C a):xs) = let {
+	(g1,g2)=split g;
+	c = (randoms g1)::[Int];
+	d = zip c a;
+	e = sortBy (\x y -> compare (fst x) (fst y)) d;
+	f = map snd e;
+} in (g2,(C f):xs)
+__J g s = (g,s)
+
 
 -- symbol S
-nf_sort :: PFunc
-nf_sort ((C a):xs) = (C (sort a)):xs
-nf_sort (a    :xs) = a:xs
-nf_sort _          = notEnoughArgs [] 1 "Sort"
+nf_S :: PFunc
+nf_S ((C a):xs) = (C (sort a)):xs
+nf_S (a    :xs) = a:xs
+nf_S _          = notEnoughArgs [] 1 "sort"
 
 -- symbol {
 nf_lbrace :: PFunc

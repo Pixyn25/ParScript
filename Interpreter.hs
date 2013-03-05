@@ -1,4 +1,4 @@
-module Interpreter (doString, module Types) where
+module Interpreter (runTok, runToks, doString, module Types) where
 
 import Types
 import Parser

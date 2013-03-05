@@ -6,8 +6,8 @@ import Control.Monad.Instances
 
 parse :: String -> Either String [Token]
 parse [] = Right []
-parse s@(']':_) = Left "Unexpected right bracket"
-parse s@(')':_) = Left "Unexpected right paren"
+parse s@(']':_) = Left "Syntax error - unexpected right bracket"
+parse s@(')':_) = Left "Syntax error - unexpected right paren"
 parse s@('[':_) = do
 	let (l,r) = depth '[' ']' s
 	pl <- parse l
@@ -16,19 +16,27 @@ parse s@('[':_) = do
 parse s@('(':_) = do
 	let (l,r) = depth '(' ')' s
 	pr <- parse r
-	return ((CTok l):pr)
-parse s@('"':r) = Left "Not yet implemented"
+	return ((LTok. S $ l):pr)
+parse s@('"':_) = case (reads::ReadS String) s of
+	[] -> Left "Could not find end of string!"
+	(a,b):_ -> do
+		pr <- parse b
+		return ((LTok . S $a):pr)	
 parse s@(c:cs)
 	| isSpace c = parse (dropWhile isSpace s)
 	| isDigit c = let [(a,b)]=(reads::ReadS Double) s in do
 		let n=LTok. N. toRational$a
 		pr  <- parse b
 		return (n:pr)
+	| isAlpha c = let (a,b) = span isAlpha s in do
+		let f=FTok a
+		pr <- parse b
+		return (f:pr)
 	| otherwise = do
 		let f=(FTok (c:[]))
 		pr <- parse cs
 		return (f:pr)
-parse _ = Left "Not yet implemented"
+parse _ = error "Something bad happened... How did I get here?"
 
 depth :: Char -> Char -> String -> (String,String)
 depth u d s = let {
@@ -37,5 +45,5 @@ depth u d s = let {
                    | 2>1  = y;
 	(_:l) = zip s (scanl helper 0 s);
 	(r,rs) = break ((0==).snd) l;
-} in (map fst r, map fst rs)
+} in (map fst $ init r, map fst rs)
 
